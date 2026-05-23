@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #f8fafc;
+      color: #1e293b;
+      font-family: system-ui, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Left panel ── */
+    .sidebar {
+      width: 240px;
+      min-width: 240px;
+      background: #f1f5f9;
+      border-right: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      padding: 20px 16px;
+      gap: 20px;
+    }
+
+    .section-label {
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 8px;
+    }
+
+    .chord-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .chord-btn {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      color: #475569;
+      border-radius: 8px;
+      padding: 10px 0;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+
+    .chord-btn:hover {
+      background: #ede9fe;
+      border-color: #6366f1;
+      color: #4338ca;
+    }
+
+    .chord-btn.active {
+      background: #4338ca;
+      border-color: #818cf8;
+      color: #fff;
+    }
+
+    canvas {
+      display: block;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+    }
+
+    /* ── Video panel ── */
+    .video-panel {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: #f8fafc;
+    }
+
+    #feed {
+      max-width: 100%;
+      max-height: 100%;
+      border-radius: 12px;
+      border: 2px solid #e2e8f0;
+      object-fit: contain;
+    }
+  </style>
+</head>
+<body>
+
+<div class="main">
+  <div class="sidebar">
+    <div>
+      <div class="section-label">Select chord</div>
+      <div class="chord-grid" id="chordGrid"></div>
+    </div>
+    <div>
+      <div class="section-label">Chord diagram</div>
+      <canvas id="chordCanvas" width="208" height="240"></canvas>
+    </div>
+  </div>
+
+  <div class="video-panel">
+    <canvas id="feed"></canvas>
+  </div>
+</div>
+
+<script>
+// ── Chord data ──────────────────────────────────────────────────────────────
+// frets: index 0 = low E (6th string), index 5 = high e (1st string)
+// fret value: -1 = muted, 0 = open, 1+ = fret number
+// fingers: 1=index, 2=middle, 3=ring, 4=pinky, 0=open/muted
+
+const CHORDS = {
+  G:  { frets: [3, 2, 0, 0, 0, 3], fingers: [2, 1, 0, 0, 0, 4], startFret: 1 },
+  C:  { frets: [-1, 3, 2, 0, 1, 0], fingers: [0, 3, 2, 0, 1, 0], startFret: 1 },
+  D:  { frets: [-1, -1, 0, 2, 3, 2], fingers: [0, 0, 0, 1, 3, 2], startFret: 1 },
+  E:  { frets: [0, 2, 2, 1, 0, 0], fingers: [0, 2, 3, 1, 0, 0], startFret: 1 },
+  A:  { frets: [-1, 0, 2, 2, 2, 0], fingers: [0, 0, 1, 2, 3, 0], startFret: 1 },
+  Em: { frets: [0, 2, 2, 0, 0, 0], fingers: [0, 2, 3, 0, 0, 0], startFret: 1 },
+  Am: { frets: [-1, 0, 2, 2, 1, 0], fingers: [0, 0, 2, 3, 1, 0], startFret: 1 },
+  F:  { frets: [1, 1, 2, 3, 3, 1], fingers: [1, 1, 2, 3, 4, 1], startFret: 1,
+        barre: { fret: 1, fromStr: 0, toStr: 5 } },
+};
+
+// ── Draw chord diagram on canvas ────────────────────────────────────────────
+function drawChord(name) {
+  const chord = CHORDS[name];
+  if (!chord) return;
+
+  const canvas = document.getElementById('chordCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const NUM_STRINGS = 6;
+  const NUM_FRETS   = 4;
+  const PAD_X       = 28;
+  const PAD_TOP     = 52;
+  const PAD_BOT     = 16;
+
+  const gridW  = W - 2 * PAD_X;
+  const gridH  = H - PAD_TOP - PAD_BOT;
+  const sStr   = gridW / (NUM_STRINGS - 1);   // spacing between strings
+  const sFret  = gridH / NUM_FRETS;            // spacing between frets
+
+  const sx = (s) => PAD_X + s * sStr;
+  const fy = (f) => PAD_TOP + (f - chord.startFret + 0.5) * sFret;
+
+  // Background
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(0, 0, W, H);
+
+  // Chord name
+  ctx.fillStyle = '#4338ca';
+  ctx.font = 'bold 20px system-ui';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(name, W / 2, 30);
+
+  // Nut (thick bar) or fret number label
+  if (chord.startFret === 1) {
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(PAD_X, PAD_TOP - 1, gridW, 4);
+  } else {
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px system-ui';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(chord.startFret + 'fr', PAD_X - 4, PAD_TOP + sFret * 0.5);
+  }
+
+  // Fret lines
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 1;
+  for (let f = 0; f <= NUM_FRETS; f++) {
+    const y = PAD_TOP + f * sFret;
+    ctx.beginPath();
+    ctx.moveTo(PAD_X, y);
+    ctx.lineTo(PAD_X + gridW, y);
+    ctx.stroke();
+  }
+
+  // String lines
+  ctx.strokeStyle = '#94a3b8';
+  for (let s = 0; s < NUM_STRINGS; s++) {
+    const x = sx(s);
+    ctx.beginPath();
+    ctx.moveTo(x, PAD_TOP);
+    ctx.lineTo(x, PAD_TOP + gridH);
+    ctx.stroke();
+  }
+
+  // X / O markers above strings
+  ctx.font = '13px system-ui';
+  ctx.textBaseline = 'middle';
+  for (let s = 0; s < NUM_STRINGS; s++) {
+    const x = sx(s);
+    const fret = chord.frets[s];
+    if (fret === -1) {
+      ctx.fillStyle = '#ef4444';
+      ctx.textAlign = 'center';
+      ctx.fillText('✕', x, PAD_TOP - 18);
+    } else if (fret === 0) {
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(x, PAD_TOP - 18, 6, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  // Barre
+  if (chord.barre) {
+    const { fret, fromStr, toStr } = chord.barre;
+    const by  = PAD_TOP + (fret - chord.startFret) * sFret + sFret * 0.2;
+    const bh  = sFret * 0.6;
+    const bx1 = sx(fromStr);
+    const bx2 = sx(toStr);
+    const r   = bh / 2;
+    ctx.fillStyle = '#4f46e5';
+    ctx.beginPath();
+    ctx.moveTo(bx1 + r, by);
+    ctx.lineTo(bx2 - r, by);
+    ctx.arcTo(bx2, by, bx2, by + bh, r);
+    ctx.lineTo(bx2, by + bh - r);  // not needed but safe
+    ctx.arcTo(bx2, by + bh, bx2 - r, by + bh, r);
+    ctx.lineTo(bx1 + r, by + bh);
+    ctx.arcTo(bx1, by + bh, bx1, by + bh - r, r);
+    ctx.arcTo(bx1, by, bx1 + r, by, r);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Finger dots
+  const dotR = sFret * 0.28;
+  for (let s = 0; s < NUM_STRINGS; s++) {
+    const fret = chord.frets[s];
+    if (fret < 1) continue;
+    // Skip barre strings (already covered by the barre pill), except show
+    // non-barre fingers on top of it.
+    const isBarre = chord.barre && fret === chord.barre.fret;
+    if (isBarre && chord.fingers[s] === 1) continue;
+
+    const x = sx(s);
+    const y = PAD_TOP + (fret - chord.startFret) * sFret + sFret * 0.5;
+    ctx.fillStyle = '#4f46e5';
+    ctx.beginPath();
+    ctx.arc(x, y, dotR, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (chord.fingers && chord.fingers[s]) {
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${Math.round(dotR * 1.2)}px system-ui`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(chord.fingers[s], x, y);
+    }
+  }
+}
+
+// ── Build chord buttons ──────────────────────────────────────────────────────
+let activeChord = 'G';
+
+function selectChord(name) {
+  activeChord = name;
+
+  document.querySelectorAll('.chord-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.chord === name);
+  });
+
+  drawChord(name);
+
+  fetch('/set_chord', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chord: name }),
+  });
+}
+
+const grid = document.getElementById('chordGrid');
+Object.keys(CHORDS).forEach(name => {
+  const btn = document.createElement('button');
+  btn.className = 'chord-btn';
+  btn.dataset.chord = name;
+  btn.textContent = name;
+  btn.addEventListener('click', () => selectChord(name));
+  grid.appendChild(btn);
+});
+
+// Select default
+selectChord('G');
+
+// ── Video feed ───────────────────────────────────────────────────────────────
+(function () {
+  const canvas = document.getElementById('feed');
+  const ctx = canvas.getContext('2d');
+
+  function fetchFrame() {
+    const img = new Image();
+    img.onload = function () {
+      canvas.width  = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      ctx.drawImage(img, 0, 0);
+      setTimeout(fetchFrame, 33);
+    };
+    img.onerror = function () {
+      setTimeout(fetchFrame, 200);
+    };
+    img.src = '/snapshot?t=' + Date.now();
+  }
+
+  fetchFrame();
+})();
+
+</script>
+</body>
+</html>
