@@ -5,6 +5,8 @@ import threading
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
+import fretboard
+
 MODEL_PATH   = 'hand_landmarker.task'
 CAMERA_INDEX = 1  # 0 = iPhone (Continuity Camera), 1 = built-in FaceTime
 
@@ -55,6 +57,9 @@ def _run_detection(state, state_lock):
                 continue
 
             frame = cv2.flip(frame, 1)
+
+            frame, detected_lines, edges = fretboard.detect_fretboard(frame)
+
             rgb      = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
             timestamp_ms = int(time.time() * 1000)
