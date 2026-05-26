@@ -18,8 +18,8 @@ A web-based guitar chord trainer that uses your webcam and MediaPipe hand landma
 
 1. Clone the repo:
    ```bash
-   git clone https://github.com/madihuang8/GuitarCV.git
-   cd GuitarCV
+   git clone https://github.com/madihuang8/CS131-Final.git
+   cd CS131-Final
    ```
 
 2. Install dependencies:
