@@ -1,5 +1,5 @@
-# GuitarCV
-
+# Real-Time AR Guitar Instruction via Homographic Perspective Mapping
+ 
 A web-based guitar chord trainer that uses your webcam and MediaPipe hand landmark detection to track your fretting hand in real time. Select a chord on the sidebar to see its diagram and overlay the chord name on the live video feed.
 
 ## Features
@@ -8,10 +8,6 @@ A web-based guitar chord trainer that uses your webcam and MediaPipe hand landma
 - Chord diagram for G, C, D, E, A, Em, Am, F
 - Chord name overlaid on the video frame
 - Works in all browsers (Safari, Chrome, Firefox)
-
-## Demo
-
-![UI showing chord diagram sidebar and live camera feed](static/)
 
 ## Requirements
 
