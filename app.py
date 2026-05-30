@@ -1,13 +1,12 @@
 import threading
 from flask import Flask, Response, render_template, request, jsonify
 import guitar
+import fretboard
 
 app = Flask(__name__)
 
 state = {'chord': 'G'}
 state_lock = threading.Lock()
-
-guitar.start(state, state_lock)
 
 
 @app.route('/')
@@ -37,5 +36,23 @@ def set_chord():
     return jsonify({'ok': True})
 
 
+@app.route('/lock_fretboard', methods=['POST'])
+def lock_fretboard():
+    locked = fretboard.lock_current_fretboard()
+    return jsonify({'ok': locked, 'locked': locked})
+
+
+@app.route('/reset_fretboard', methods=['POST'])
+def reset_fretboard():
+    fretboard.reset_locked_fretboard()
+    return jsonify({'ok': True, 'locked': False})
+
+
+@app.route('/fretboard_status')
+def fretboard_status():
+    return jsonify({'locked': fretboard.is_fretboard_locked()})
+
+
 if __name__ == '__main__':
+    guitar.start(state, state_lock)
     app.run(debug=False, threaded=True, host='127.0.0.1', port=5000)

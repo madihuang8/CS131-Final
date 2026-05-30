@@ -70,6 +70,36 @@
       color: #fff;
     }
 
+    .fretboard-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .control-btn {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      color: #475569;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+
+    .control-btn:hover {
+      background: #ede9fe;
+      border-color: #6366f1;
+      color: #4338ca;
+    }
+
+    #fretboardStatus {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-top: 4px;
+    }
+
     canvas {
       display: block;
       border-radius: 10px;
@@ -107,6 +137,14 @@
     <div>
       <div class="section-label">Chord diagram</div>
       <canvas id="chordCanvas" width="208" height="240"></canvas>
+    </div>
+    <div>
+      <div class="section-label">Fretboard tracking</div>
+      <div class="fretboard-controls">
+        <button class="control-btn" id="lockFretboardBtn" type="button">Lock Fretboard</button>
+        <button class="control-btn" id="resetFretboardBtn" type="button">Reset Fretboard</button>
+        <div id="fretboardStatus">Unlocked</div>
+      </div>
     </div>
   </div>
 
@@ -299,6 +337,44 @@ Object.keys(CHORDS).forEach(name => {
 
 // Select default
 selectChord('G');
+
+// ── Fretboard lock/reset controls ───────────────────────────────────────────
+const lockFretboardBtn = document.getElementById('lockFretboardBtn');
+const resetFretboardBtn = document.getElementById('resetFretboardBtn');
+const fretboardStatus = document.getElementById('fretboardStatus');
+
+async function updateFretboardStatus() {
+  try {
+    const response = await fetch('/fretboard_status');
+    const data = await response.json();
+    fretboardStatus.textContent = data.locked ? 'Locked' : 'Unlocked';
+  } catch (err) {
+    fretboardStatus.textContent = 'Status unavailable';
+  }
+}
+
+lockFretboardBtn.addEventListener('click', async () => {
+  fretboardStatus.textContent = 'Locking...';
+  try {
+    const response = await fetch('/lock_fretboard', { method: 'POST' });
+    const data = await response.json();
+    fretboardStatus.textContent = data.locked ? 'Locked' : 'Lock failed — wait until frets are visible';
+  } catch (err) {
+    fretboardStatus.textContent = 'Lock failed — server error';
+  }
+});
+
+resetFretboardBtn.addEventListener('click', async () => {
+  try {
+    await fetch('/reset_fretboard', { method: 'POST' });
+    fretboardStatus.textContent = 'Unlocked';
+  } catch (err) {
+    fretboardStatus.textContent = 'Reset failed — server error';
+  }
+});
+
+updateFretboardStatus();
+setInterval(updateFretboardStatus, 1000);
 
 // ── Video feed ───────────────────────────────────────────────────────────────
 (function () {

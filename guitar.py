@@ -4,6 +4,7 @@ import time
 import threading
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+import numpy as np
 
 import fretboard
 
@@ -22,9 +23,83 @@ HAND_CONNECTIONS = [
 FINGERTIP_IDS = [4, 8, 12, 16, 20]
 FINGER_NAMES = {4: "1", 8: "2", 12: "3", 16: "4", 20: "5"}
 
+CHORDS = {
+    'G':  {'frets': [3, 2, 0, 0, 0, 3], 'fingers': [2, 1, 0, 0, 0, 4]},
+    'C':  {'frets': [-1, 3, 2, 0, 1, 0], 'fingers': [0, 3, 2, 0, 1, 0]},
+    'D':  {'frets': [-1, -1, 0, 2, 3, 2], 'fingers': [0, 0, 0, 1, 3, 2]},
+    'E':  {'frets': [0, 2, 2, 1, 0, 0], 'fingers': [0, 2, 3, 1, 0, 0]},
+    'A':  {'frets': [-1, 0, 2, 2, 2, 0], 'fingers': [0, 0, 1, 2, 3, 0]},
+    'Em': {'frets': [0, 2, 2, 0, 0, 0], 'fingers': [0, 2, 3, 0, 0, 0]},
+    'Am': {'frets': [-1, 0, 2, 2, 1, 0], 'fingers': [0, 0, 2, 3, 1, 0]},
+    'F':  {'frets': [1, 1, 2, 3, 3, 1], 'fingers': [1, 1, 2, 3, 4, 1]},
+}
+
+
+# 0.5 = center of fret box; higher values shift closer to the body-side fret wire.
+FINGER_DOT_FRET_FRACTION = 0.72
+
 outputFrame = None
 lock = threading.Lock()
 
+def draw_chord_targets(frame, chord_name, fretboard_info):
+    if not chord_name or chord_name not in CHORDS:
+        return
+
+    if not isinstance(fretboard_info, dict) or not fretboard_info.get('locked'):
+        return
+
+    fret_points = fretboard_info.get('tracked_frets')
+    string_points = fretboard_info.get('tracked_strings')
+
+    if fret_points is None or string_points is None:
+        return
+
+    fret_points = np.array(fret_points, dtype=np.float32).reshape(-1, 2)
+    string_points = np.array(string_points, dtype=np.float32).reshape(-1, 2)
+
+    num_fret_lines = len(fret_points) // 2
+    num_strings = len(string_points) // 2
+
+    if num_fret_lines < 2 or num_strings != 6:
+        return
+
+    chord = CHORDS[chord_name]
+    frets = chord['frets']
+    fingers = chord['fingers']
+
+    for chord_string_index, fret_number in enumerate(frets):
+        if fret_number <= 0:
+            continue
+
+        # Fret 1 is between fret line 0 and fret line 1, etc.
+        if fret_number >= num_fret_lines:
+            continue
+
+        tracked_string_index = 5 - chord_string_index if REVERSE_STRING_ORDER else chord_string_index
+
+        string_start = string_points[2 * tracked_string_index]
+        string_end = string_points[2 * tracked_string_index + 1]
+
+        # Shift the dot toward the body-side fret wire instead of centering it.
+        t = ((fret_number - 1) + FINGER_DOT_FRET_FRACTION) / (num_fret_lines - 1)
+        t = max(0.0, min(1.0, t))
+
+        point = (1.0 - t) * string_start + t * string_end
+        x, y = np.round(point).astype(int)
+
+        cv2.circle(frame, (x, y), 16, (0, 200, 0), cv2.FILLED)
+        cv2.circle(frame, (x, y), 16, (255, 255, 255), 2)
+
+        finger_label = fingers[chord_string_index]
+        if finger_label:
+            cv2.putText(
+                frame,
+                str(finger_label),
+                (x - 6, y + 6),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (255, 255, 255),
+                2)
 
 def _run_detection(state, state_lock):
     global outputFrame
@@ -57,14 +132,24 @@ def _run_detection(state, state_lock):
                 continue
 
             frame = cv2.flip(frame, 1)
+            frame_height, frame_width = frame.shape[:2]
 
-            frame, detected_lines, edges = fretboard.detect_fretboard(frame)
-
-            rgb      = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # run on the clean camera frame, not the frame with fretboard drawings.
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-            timestamp_ms = int(time.time() * 1000)
+            timestamp_ms = int(time.monotonic() * 1000)
 
             result = detector.detect_for_video(mp_image, timestamp_ms)
+
+            # draw fretboard annotations on a separate display frame
+            try:
+                display_frame, fretboard_info, edges = fretboard.detect_fretboard_with_labels(frame)
+            except Exception as e:
+                print("[guitar] fretboard labeling error:", repr(e), flush=True)
+                display_frame, _, edges = fretboard.detect_fretboard(frame)
+                fretboard_info = None
+
+            frame = display_frame
 
             for hand_landmarks in result.hand_landmarks:
                 for start, end in HAND_CONNECTIONS:
@@ -83,6 +168,8 @@ def _run_detection(state, state_lock):
 
             with state_lock:
                 chord_name = state.get('chord', '')
+            draw_chord_targets(frame, chord_name, fretboard_info)
+
             if chord_name:
                 cv2.putText(frame, chord_name, (16, 40),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.2, (99, 102, 241), 2)
@@ -151,11 +238,21 @@ if __name__ == '__main__':
                 break
 
             frame = cv2.flip(frame, 1)
-            rgb      = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame_height, frame_width = frame.shape[:2]
+
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-            timestamp_ms = int(time.time() * 1000)
+            timestamp_ms = int(time.monotonic() * 1000)
 
             result = detector.detect_for_video(mp_image, timestamp_ms)
+
+            try:
+                display_frame, fretboard_info, edges = fretboard.detect_fretboard_with_labels(frame)
+            except Exception as e:
+                print("[guitar] fretboard labeling error:", repr(e), flush=True)
+                display_frame, fretboard_info, edges = fretboard.detect_fretboard(frame)
+
+            frame = display_frame
 
             for hand_landmarks in result.hand_landmarks:
                 for start, end in HAND_CONNECTIONS:
@@ -173,7 +270,8 @@ if __name__ == '__main__':
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
             cv2.imshow('Guitar Chord Trainer', frame)
-            if cv2.waitKey(1) & 0xFF in (ord('q'), 27):
+            key = cv2.waitKey(1) & 0xFF
+            if key in (ord('q'), 27):
                 break
 
     cam.release()
