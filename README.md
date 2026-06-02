@@ -54,6 +54,7 @@ CAMERA_INDEX = 1  # 0 = iPhone (Continuity Camera), 1 = built-in FaceTime
 
 ```
 ├── app.py              # Flask server
+├── fretboard.py        # Fretboard mapping and augmentation
 ├── guitar.py           # Camera capture and MediaPipe hand detection
 ├── hand_landmarker.task  # MediaPipe hand landmark model
 └── templates/
