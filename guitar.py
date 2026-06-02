@@ -11,6 +11,8 @@ import fretboard
 MODEL_PATH   = 'hand_landmarker.task'
 CAMERA_INDEX = 1  # 0 = iPhone (Continuity Camera), 1 = built-in FaceTime
 
+
+
 HAND_CONNECTIONS = [
     (0, 1), (1, 2), (2, 3), (3, 4),
     (0, 5), (5, 6), (6, 7), (7, 8),
@@ -37,6 +39,8 @@ CHORDS = {
 
 # 0.5 = center of fret box; higher values shift closer to the body-side fret wire.
 FINGER_DOT_FRET_FRACTION = 0.72
+
+REVERSE_STRING_ORDER = False
 
 outputFrame = None
 lock = threading.Lock()

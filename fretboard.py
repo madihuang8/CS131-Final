@@ -191,7 +191,7 @@ def _cluster_positions(values, cluster_gap):
     return np.array(clustered, dtype=np.float32)
 
 
-def _estimate_six_string_positions(perp_values):
+def estimate_six_string_positions(perp_values):
     if len(perp_values) == 0:
         return None
 
@@ -255,7 +255,7 @@ def detect_fretboard_with_labels(frame, max_frets=12):
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     edges = cv2.Canny(blurred, 50, 150)
     lines = cv2.HoughLinesP(edges, 1, np.pi / 180,
-        threshold=80, minLineLength=80, maxLineGap=20)
+        threshold = 80, minLineLength = 80, maxLineGap = 20)
 
     output = frame.copy()
     if lines is None:
@@ -301,7 +301,7 @@ def detect_fretboard_with_labels(frame, max_frets=12):
     if len(string_candidates) < 2 or len(fret_candidates) < 3:
         return output, lines, edges
 
-    string_positions = _estimate_six_string_positions(string_position_values)
+    string_positions = estimate_six_string_positions(string_position_values)
     if string_positions is None:
         return output, lines, edges
 
