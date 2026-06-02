@@ -1,4 +1,4 @@
-# Real-Time AR Guitar Instruction via Homographic Perspective Mapping
+# Real-Time AR Guitar Instruction
  
 A web-based guitar chord trainer that uses your webcam and MediaPipe hand landmark detection to track your fretting hand in real time. Select a chord on the sidebar to see its diagram and overlay the chord name on the live video feed.
 
