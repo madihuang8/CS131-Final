@@ -69,14 +69,7 @@ class FretboardTracker:
 
         mask = self._make_tracking_mask(gray.shape, line_points)
 
-        features = cv2.goodFeaturesToTrack(
-            gray,
-            maxCorners=150,
-            qualityLevel=0.01,
-            minDistance=7,
-            blockSize=7,
-            mask=mask
-        )
+        features = cv2.goodFeaturesToTrack(gray, maxCorners=150, qualityLevel=0.01, minDistance=7, blockSize=7, mask=mask)
 
         if features is None or len(features) < 8:
             return False
@@ -93,15 +86,8 @@ class FretboardTracker:
         if not self.locked or self.prev_gray is None or self.prev_features is None or self.line_points is None or self.string_points is None:
             return None
 
-        next_features, status, _ = cv2.calcOpticalFlowPyrLK(
-            self.prev_gray,
-            gray,
-            self.prev_features,
-            None,
-            winSize=(31, 31),
-            maxLevel=4,
-            criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 30, 0.01)
-        )
+        next_features, status, _ = cv2.calcOpticalFlowPyrLK(self.prev_gray, gray, self.prev_features,
+            None, winSize=(31, 31), maxLevel=4, criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 30, 0.01))
 
         if next_features is None or status is None:
             self.reset()
@@ -115,14 +101,8 @@ class FretboardTracker:
             self.reset()
             return None
 
-        transform, inliers = cv2.estimateAffinePartial2D(
-            old_good,
-            new_good,
-            method=cv2.RANSAC,
-            ransacReprojThreshold=4.0,
-            maxIters=2000,
-            confidence=0.99
-        )
+        transform, inliers = cv2.estimateAffinePartial2D(old_good, new_good,
+            method=cv2.RANSAC, ransacReprojThreshold=4.0, maxIters=2000, confidence=0.99)
 
         if transform is None or inliers is None or int(inliers.sum()) < 6:
             self.reset()
@@ -142,14 +122,8 @@ class FretboardTracker:
         if len(self.prev_features) < 40:
             all_points = np.vstack([self.line_points, self.string_points])
             mask = self._make_tracking_mask(gray.shape, all_points)
-            features = cv2.goodFeaturesToTrack(
-                gray,
-                maxCorners=150,
-                qualityLevel=0.01,
-                minDistance=7,
-                blockSize=7,
-                mask=mask
-            )
+            features = cv2.goodFeaturesToTrack(gray,
+                maxCorners=150, qualityLevel=0.01, minDistance=7, blockSize=7, mask=mask)
             if features is not None and len(features) >= 8:
                 self.prev_features = features.astype(np.float32)
                 self.feature_mask = mask
@@ -214,7 +188,7 @@ def estimate_six_string_positions(perp_values):
 
     if len(clustered) >= 2:
         # interpolation since it's difficult to detect all strings, especially the smaller ones
-        # some strings were missed. Infer all six as equally spaced between detected extremes.
+        # infer all six as equally spaced between detected extremes.
         return np.linspace(np.min(clustered), np.max(clustered), 6).astype(np.float32)
 
     return None
@@ -273,6 +247,7 @@ def detect_fretboard_with_labels(frame, max_frets=12):
             "length": length,
         })
 
+    # look at all detected lines that are >180 pixels in length
     long_lines = [l for l in raw_lines if l["length"] > 180]
     if len(long_lines) == 0:
         return output, lines, edges
@@ -389,15 +364,11 @@ def detect_fretboard_with_labels(frame, max_frets=12):
         label_point = _point_from_projection(axis, perp, label_pos_along, center_across)
         x, y = np.round(label_point).astype(int)
 
-        cv2.putText(
-            output,
+        cv2.putText(output,
             str(fret_number),
             (x - 8, y - 8),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (0, 0, 255),
-            2
-        )
+            0.7, (0, 0, 255), 2)
 
     info = {
         "locked": False,
@@ -442,20 +413,13 @@ def _draw_locked_fretboard(output, tracked_points):
             str(i + 1),
             (x - 8, y - 8),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (0, 0, 255),
-            2
-        )
+            0.7, (0, 0, 255), 2)
 
     cv2.putText(
-        output,
-        "LOCKED",
+        output, "LOCKED",
         (16, 80),
         cv2.FONT_HERSHEY_SIMPLEX,
-        0.9,
-        (255, 0, 255),
-        2
-    )
+        0.9, (255, 0, 255), 2)
 
 
 def _draw_locked_strings(output, tracked_strings):
@@ -472,15 +436,7 @@ def _draw_locked_strings(output, tracked_strings):
     for i, (p_left, p_right) in enumerate(string_lines):
         x = int(p_left[0] - 35)
         y = int(p_left[1])
-        cv2.putText(
-            output,
-            f"S{i + 1}",
-            (x - 10, y + 5),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.45,
-            (0, 255, 255),
-            1
-        )
+        cv2.putText(output, f"S{i + 1}", (x - 10, y + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 255), 1)  # string labels
 
 
 def detect_fretboard(frame):
