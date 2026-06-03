@@ -63,4 +63,8 @@ CAMERA_INDEX = 1  # 0 = iPhone (Continuity Camera), 1 = built-in FaceTime
 
 ## How it works
 
-`guitar.py` runs hand detection in a background thread using MediaPipe's `HandLandmarker` in VIDEO mode. It draws skeleton connections and numbered fingertip dots onto each frame and stores the result in a shared `outputFrame`. The Flask server in `app.py` serves individual JPEG snapshots from that shared frame to the browser, which renders them on a canvas at ~30 fps.
+`guitar.py` runs camera capture and hand detection in a background thread using MediaPipe’s HandLandmarker in VIDEO mode. It draws hand skeleton connections and numbered fingertip dots onto each frame, then stores the annotated result in a shared outputFrame.
+
+`fretboard.py` handles fretboard detection and AR augmentation. It uses OpenCV image processing, including Canny edge detection and Hough line transforms, to identify candidate fretboard, string, and fret lines. Once the fretboard is locked, it estimates the fret/string geometry and projects chord finger placements onto the live video feed.
+
+The Flask server in `app.py` serves individual JPEG snapshots from the shared frame to the browser. The frontend in templates/index.html renders those snapshots on a canvas at approximately 30 fps and provides UI controls for locking/resetting the fretboard and selecting chords.
