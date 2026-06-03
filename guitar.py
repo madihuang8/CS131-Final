@@ -9,10 +9,9 @@ import numpy as np
 import fretboard
 
 MODEL_PATH   = 'hand_landmarker.task'
-CAMERA_INDEX = 1  # 0 = iPhone (Continuity Camera), 1 = built-in FaceTime
+CAMERA_INDEX = 1  # 0 for iPhone, 1 for computer
 
-
-
+# for the hand tracking
 HAND_CONNECTIONS = [
     (0, 1), (1, 2), (2, 3), (3, 4),
     (0, 5), (5, 6), (6, 7), (7, 8),
@@ -25,7 +24,7 @@ HAND_CONNECTIONS = [
 FINGERTIP_IDS = [4, 8, 12, 16, 20]
 FINGER_NAMES = {4: "1", 8: "2", 12: "3", 16: "4", 20: "5"}
 
-CHORDS = {
+CHORDS = {  # our chord dictionary
     'G':  {'frets': [3, 2, 0, 0, 0, 3], 'fingers': [2, 1, 0, 0, 0, 4]},
     'C':  {'frets': [-1, 3, 2, 0, 1, 0], 'fingers': [0, 3, 2, 0, 1, 0]},
     'D':  {'frets': [-1, -1, 0, 2, 3, 2], 'fingers': [0, 0, 0, 1, 3, 2]},
@@ -38,9 +37,9 @@ CHORDS = {
 
 
 # 0.5 = center of fret box; higher values shift closer to the body-side fret wire.
-FINGER_DOT_FRET_FRACTION = 0.72
+FINGER_DOT_FRET_FRACTION = 0.72  # true to real guitar playing
 
-REVERSE_STRING_ORDER = False
+REVERSE_STRING_ORDER = False  # based on our experience, this doesn't need to be TRUE
 
 outputFrame = None
 lock = threading.Lock()
@@ -75,7 +74,6 @@ def draw_chord_targets(frame, chord_name, fretboard_info):
         if fret_number <= 0:
             continue
 
-        # Fret 1 is between fret line 0 and fret line 1, etc.
         if fret_number >= num_fret_lines:
             continue
 
@@ -84,7 +82,7 @@ def draw_chord_targets(frame, chord_name, fretboard_info):
         string_start = string_points[2 * tracked_string_index]
         string_end = string_points[2 * tracked_string_index + 1]
 
-        # Shift the dot toward the body-side fret wire instead of centering it.
+        # shift the dot toward the body-side fret wire instead of centering it.
         t = ((fret_number - 1) + FINGER_DOT_FRET_FRACTION) / (num_fret_lines - 1)
         t = max(0.0, min(1.0, t))
 
@@ -138,7 +136,7 @@ def _run_detection(state, state_lock):
             frame = cv2.flip(frame, 1)
             frame_height, frame_width = frame.shape[:2]
 
-            # run on the clean camera frame, not the frame with fretboard drawings.
+            # run on the clean camera frame, not the frame with fretboard drawings
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
             timestamp_ms = int(time.monotonic() * 1000)
@@ -220,13 +218,8 @@ def generate():
 if __name__ == '__main__':
     base_options = python.BaseOptions(model_asset_path=MODEL_PATH)
     options = vision.HandLandmarkerOptions(
-        base_options=base_options,
-        running_mode=vision.RunningMode.VIDEO,
-        num_hands=2,
-        min_hand_detection_confidence=0.7,
-        min_hand_presence_confidence=0.5,
-        min_tracking_confidence=0.5,
-    )
+        base_options=base_options, running_mode=vision.RunningMode.VIDEO, num_hands=2,
+        min_hand_detection_confidence=0.7, min_hand_presence_confidence=0.5, min_tracking_confidence=0.5,)
 
     cam = cv2.VideoCapture(CAMERA_INDEX)
     if not cam.isOpened():
